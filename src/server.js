@@ -1,5 +1,6 @@
 const fastify = require('fastify')({ logger: true })
 fastify.register(require('fastify-formbody'))
+const axios = require('axios')
 require('dotenv').config()
 const { getData } = require("../utils/get-sheet-data.js")
 
@@ -21,6 +22,7 @@ fastify.get('/sheet-data/:sheetId/:tab/:range', async(req, reply) => {
 fastify.post('/callback', async(req, resp) => {
   const twiml = new MessagingResponse();
   const {SmsStatus, MessageStatus, From, ErrorMessage} = req.body;
+  console.log(req.body)
   if (ErrorMessage != "") {
     twiml.message(`there's an error ${ErrorMessage}`)
     resp
@@ -46,28 +48,42 @@ fastify.post('/callback', async(req, resp) => {
   //   From: 'whatsapp:+14155238886',
   //   ApiVersion: '2010-04-01'
   // }
-  twiml.message("your msg has been received");
   resp
     .code(200)
     .header('Content-Type','text/xml')
-    .send(twiml.toString());
+    .send("yay");
   return resp
 })
 
-fastify.post('/incoming', async(req, resp) => {
+fastify.post('/incoming', async(req, reply) => {
   const twiml = new MessagingResponse();
   const {MessagingServiceSid, MessageSid, From, Body} = req.body;
-  const dialogflowResponse = (await sessionClient.detectIntent(
-    text, id, Body)).fulfillmentText;
 
-  twiml.message("your msg has been received");
-  resp
-    .code(200)
-    .headers({
-      'Content-Type': 'text/xml'
+  try {
+    const response = await axios({
+      url: "http://3d7c02e71459.ngrok.io/sheet-data/1CI7Idz9klLYrP95h9eJallSx3QpGxrioPw2twLhRCyM/Approved/A1-H18",
+      method: 'get'
     })
-    .send(twiml.toString());
-  return resp
+    // todo: really dumb logic will change this later
+    const assoc = response.data.values.map(pap => pap)
+    let str = ""
+    assoc.slice(1, assoc.length - 1).map(time => {
+      if (time.length > 1) {
+        time.forEach((el, idx) => {
+          str += `${time[0]} ${assoc[0][idx]} ${el}\n`
+        })
+      }
+    })
+    twiml.message(str);
+    reply
+      .code(200)
+      .header('Content-Type','text/xml')
+      .send(twiml.toString());
+    return reply
+  } catch(err) {
+    console.log(err)
+    return err
+  }
 })
 
 // Run the server!
